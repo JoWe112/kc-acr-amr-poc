@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- CI on pull requests: grant `pull-requests: read` to the path-filter job (#11).
+- Dependabot no longer proposes Keycloak image bumps; the image is bumped together with `keycloak.version` (#11).
+
 ## [0.1.0] - 2026-11-25
 
 ### Added

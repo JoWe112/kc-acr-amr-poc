@@ -142,7 +142,7 @@ ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
 | Scenario | Åtgärd |
 |----------|--------|
 | Ny SPI-version | Ersätt JAR:en, kör `kc.sh build`, rulla om podarna. Konfigurationen ligger i realmen (authenticator config) och påverkas inte. |
-| Ny Keycloak-version | Sätt `keycloak.version` i `spi/pom.xml` till exakt samma version, kör `scripts/build-spi.sh` och `scripts/run-e2e.sh` mot den nya versionen **innan** produktion. `Authenticator`, `AcrStore` och `X509ClientCertificateLookup` är interna API:er som kan ändras mellan minor-versioner. |
+| Ny Keycloak-version | Sätt `keycloak.version` i `spi/pom.xml` till exakt samma version, kör `scripts/build-spi.sh` och `scripts/run-e2e.sh` mot den nya versionen **innan** produktion. `Authenticator`, `AcrStore` och `X509ClientCertificateLookup` är interna API:er som kan ändras mellan minor-versioner. Dependabot ignorerar både `org.keycloak:*` och Keycloak-imagen, så POM och `docker-compose.yml` uppgraderas alltid tillsammans för hand. |
 | Konfigurationsändring (mappning) | Ingen omstart – ändringen gäller nästa inloggning. |
 
 ---
