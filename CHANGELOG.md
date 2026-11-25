@@ -6,13 +6,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Bump `actions/cache` to v6 and `maven-compiler-plugin` to 3.16.0 (#13).
-
-### Fixed
-- CI on pull requests: grant `pull-requests: read` to the path-filter job (#11).
-- Dependabot no longer proposes Keycloak image bumps; the image is bumped together with `keycloak.version` (#11).
-
 ## [0.1.0] - 2026-11-25
 
 ### Added
@@ -33,3 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bruno collection with PKCE login builders, token exchange with JWT decoding and claim tests, UserInfo and
   introspection; validated with Bruno CLI in both Safe and Developer sandbox (`scripts/validate-bruno.sh`).
 - Swedish documentation: `docs/admin-guide.md` and `docs/app-owner-guide.md`.
+
+### Changed
+- Dependencies: JUnit 6.1.3, maven-compiler-plugin 3.16.0, maven-surefire-plugin 3.6.1, maven-jar-plugin 3.5.1,
+  nginx-unprivileged 1.31, and GitHub Actions checkout v7, cache v6, upload-artifact v7, paths-filter v4.
+- Dependabot ignores the Keycloak image; it is bumped together with `keycloak.version` in `spi/pom.xml`.
+
+### Fixed
+- CI on pull requests: the path-filter job is granted `pull-requests: read`.
+
+[Unreleased]: https://github.com/JoWe112/kc-acr-amr-poc/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/JoWe112/kc-acr-amr-poc/releases/tag/v0.1.0
