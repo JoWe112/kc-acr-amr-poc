@@ -11,6 +11,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Bumped by hand together with keycloak.version in spi/pom.xml (the SPI is compiled against it).
+    ignore:
+      - dependency-name: "*keycloak/keycloak"
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -18,6 +18,10 @@ env:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # paths-filter lists the PR's changed files through the API on pull_request events.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       spi: ${{ steps.filter.outputs.spi }}
       e2e: ${{ steps.filter.outputs.e2e }}
