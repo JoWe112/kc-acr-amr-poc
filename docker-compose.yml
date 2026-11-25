@@ -12,7 +12,7 @@ name: kc-acr-amr-poc
 
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+    image: quay.io/keycloak/keycloak:26.8.2-3@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
     command:
       - start-dev
       - --import-realm
