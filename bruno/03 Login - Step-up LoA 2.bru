@@ -1,0 +1,42 @@
+meta {
+  name: 03 Login - Step-up LoA 2
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{authorizeUrl}}
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  loginFlow: true
+  acrValues: loa2
+}
+
+script:post-response {
+  // The authorize URL (with a fresh PKCE challenge) is built by the collection pre-request script.
+  console.log("========================================================================");
+  console.log("Öppna denna URL i webbläsaren och logga in" + (bru.getVar("requestedAcr") ? " (acr_values=" + bru.getVar("requestedAcr") + ")" : "") + ":");
+  console.log(bru.getVar("authorizeUrl"));
+  console.log("Klistra sedan in code (eller hela callback-URL:en) i miljövariabeln authCode och kör 05 Token Exchange.");
+  console.log("========================================================================");
+}
+
+tests {
+  test("Keycloak renders the login page", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("PKCE verifier stored for the token exchange", function () {
+    expect(bru.getVar("codeVerifier")).to.match(/^[0-9a-f]{64}$/);
+  });
+}
+
+docs {
+  acr_values=loa2: Passkey eller certifikat från Test CA Standard/High Trust.
+
+  Denna request hämtar bara inloggningssidan för att verifiera URL:en. Själva inloggningen görs i en
+  riktig webbläsare (klientcertifikat/Passkey fungerar inte i Brunos request-motor).
+}

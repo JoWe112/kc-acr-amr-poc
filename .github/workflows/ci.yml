@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_IMAGE: maven:3.9.9-eclipse-temurin-21
+  PYTHON_IMAGE: python:3.13-alpine
+  NODE_IMAGE: node:22-alpine
+  BRU_CLI_VERSION: 4.3.0
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      spi: ${{ steps.filter.outputs.spi }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            spi:
+              - '.github/workflows/ci.yml'
+              - 'spi/**'
+            e2e:
+              - '.github/workflows/ci.yml'
+              - 'spi/**'
+              - 'keycloak/**'
+              - 'bruno/**'
+              - 'callback/**'
+              - 'scripts/**'
+              - 'docker-compose.yml'
+
+  spi:
+    name: SPI build + unit tests
+    needs: changes
+    if: needs.changes.outputs.spi == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('spi/pom.xml') }}
+      - name: Maven verify
+        run: scripts/build-spi.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x509-issuer-loa-authenticator
+          path: spi/target/x509-issuer-loa-authenticator.jar
+
+  e2e:
+    name: End-to-end (Keycloak + Bruno)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('spi/pom.xml') }}
+      - name: Generate test certificates
+        run: scripts/generate-certs.sh
+      - name: Build SPI
+        run: scripts/build-spi.sh -q package -DskipTests
+      - name: Start stack
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: End-to-end tests (password, X.509, passkey, SSO, step-up)
+        run: scripts/run-e2e.sh
+      - name: Validate Bruno collection with Bruno CLI
+        run: scripts/validate-bruno.sh
+      - name: Keycloak logs
+        if: failure()
+        run: docker compose logs keycloak
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v

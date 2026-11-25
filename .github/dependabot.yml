@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /spi
+    schedule:
+      interval: weekly
+    # The Keycloak version must match the target server; bump it deliberately together with the image.
+    ignore:
+      - dependency-name: "org.keycloak:*"
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,8 @@
+Keycloak ACR/AMR POC — X.509 Issuer LoA Authenticator
+Copyright 2026 The kc-acr-amr-poc authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It is built to run on Keycloak (https://www.keycloak.org), licensed under the
+Apache License, Version 2.0. Keycloak is provided by the server at runtime and is
+not redistributed by this project.

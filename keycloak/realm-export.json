@@ -1,0 +1,380 @@
+{
+  "realm": "acr-poc",
+  "displayName": "ACR/AMR POC",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "eventsEnabled": true,
+  "eventsExpiration": 86400,
+  "enabledEventTypes": [],
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "accessTokenLifespan": 300,
+  "attributes": {
+    "acr.loa.map": "{\"loa1\":1,\"loa2\":2,\"loa3\":3}"
+  },
+  "browserFlow": "browser-acr-amr",
+  "webAuthnPolicyPasswordlessRpEntityName": "ACR/AMR POC",
+  "webAuthnPolicyPasswordlessRpId": "localhost",
+  "webAuthnPolicyPasswordlessSignatureAlgorithms": [
+    "ES256",
+    "RS256"
+  ],
+  "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyPasswordlessAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyPasswordlessRequireResidentKey": "Yes",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "webAuthnPolicyPasswordlessCreateTimeout": 0,
+  "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+  "users": [
+    {
+      "username": "testuser",
+      "email": "testuser@example.org",
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test1234!",
+          "temporary": false
+        }
+      ],
+      "requiredActions": []
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "bruno",
+      "name": "Bruno test client (public, PKCE)",
+      "description": "Public OIDC client used by the Bruno collection and the e2e test script.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:8081/callback",
+        "https://oauth.usebruno.com/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8081/*",
+        "use.refresh.tokens": "true"
+      },
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "basic",
+        "web-origins",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "acr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-acr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "x509_issuer",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "x509_issuer_dn",
+            "claim.name": "x509_issuer",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "audience poc-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "poc-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "poc-api",
+      "name": "POC backend API (resource server)",
+      "description": "Confidential client representing a backend API. Only used to call the token introspection endpoint.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "poc-api-secret-change-me",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "basic"
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "x509-validate-username (amr x509)",
+      "config": {
+        "x509-cert-auth.mapping-source-selection": "Subject's Common Name",
+        "x509-cert-auth.regular-expression": "(.*?)(?:$)",
+        "x509-cert-auth.mapper-selection": "Username or Email",
+        "x509-cert-auth.mapper-selection.user-attribute-name": "usercertificate",
+        "x509-cert-auth.crl-checking-enabled": "false",
+        "x509-cert-auth.crldp-checking-enabled": "false",
+        "x509-cert-auth.ocsp-checking-enabled": "false",
+        "x509-cert-auth.ocsp-fail-open": "false",
+        "x509-cert-auth.canonical-dn-enabled": "false",
+        "x509-cert-auth.serialnumber-hex-enabled": "false",
+        "x509-cert-auth.timestamp-validation-enabled": "true",
+        "x509-cert-auth.keyusage": "digitalSignature",
+        "x509-cert-auth.extendedkeyusage": "1.3.6.1.5.5.7.3.2",
+        "x509-cert-auth.confirmation-page-disallowed": "false",
+        "x509-cert-auth.revalidate-certificate-enabled": "false",
+        "default.reference.value": "x509",
+        "default.reference.maxAge": "36000"
+      }
+    },
+    {
+      "alias": "x509-issuer-loa-mapping",
+      "config": {
+        "x509loa.issuer-mapping": "CN=Test CA Standard,O=Example Org,C=SE::2##CN=Test CA High Trust,O=Example Org,C=SE::3",
+        "x509loa.unknown-issuer-policy": "reject",
+        "x509loa.default-loa": "1"
+      }
+    },
+    {
+      "alias": "loa3-max-age (x509 high trust)",
+      "config": {
+        "loa-condition-level": "3",
+        "loa-max-age": "36000"
+      }
+    },
+    {
+      "alias": "loa2-condition (passkey)",
+      "config": {
+        "loa-condition-level": "2",
+        "loa-max-age": "36000"
+      }
+    },
+    {
+      "alias": "passkey (amr hwk)",
+      "config": {
+        "default.reference.value": "hwk",
+        "default.reference.maxAge": "36000"
+      }
+    },
+    {
+      "alias": "loa1-condition (password)",
+      "config": {
+        "loa-condition-level": "1",
+        "loa-max-age": "36000"
+      }
+    },
+    {
+      "alias": "password (amr pwd)",
+      "config": {
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "36000"
+      }
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "browser-acr-amr",
+      "description": "Browser flow: Cookie | X.509 (LoA from issuing CA) | Passkey (LoA 2) | Password (LoA 1)",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "browser-acr-amr - X509",
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "browser-acr-amr - Passkey",
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "browser-acr-amr - Password",
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 40,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-acr-amr - X509",
+      "description": "Client certificate login. The LoA is set by the X509 Issuer LoA Authenticator from the Issuer DN. The level-3 condition is never evaluated here (non-conditional subflow); it only registers the max age of LoA 3 for SSO re-use.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-x509-client-username-form",
+          "authenticatorConfig": "x509-validate-username (amr x509)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "x509-issuer-loa-authenticator",
+          "authenticatorConfig": "x509-issuer-loa-mapping",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "loa3-max-age (x509 high trust)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-acr-amr - Passkey",
+      "description": "Wrapper (ALTERNATIVE) around the conditional LoA 2 subflow.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "flowAlias": "browser-acr-amr - Passkey LoA2",
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-acr-amr - Passkey LoA2",
+      "description": "Passkey (discoverable WebAuthn credential). Sets LoA 2 when the subflow succeeds. The authenticator is placed BEFORE the condition so that 'Try another way' lists all alternatives.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "webauthn-authenticator-passwordless",
+          "authenticatorConfig": "passkey (amr hwk)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "loa2-condition (passkey)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-acr-amr - Password",
+      "description": "Wrapper (ALTERNATIVE) around the conditional LoA 1 subflow.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "flowAlias": "browser-acr-amr - Password LoA1",
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-acr-amr - Password LoA1",
+      "description": "Username and password. Sets LoA 1 when the subflow succeeds. The authenticator is placed BEFORE the condition so that 'Try another way' lists all alternatives.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "password (amr pwd)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "loa1-condition (password)",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ]
+}

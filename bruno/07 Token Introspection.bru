@@ -1,0 +1,60 @@
+meta {
+  name: 07 Token Introspection
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/realms/{{realm}}/protocol/openid-connect/token/introspect
+  body: formUrlEncoded
+  auth: basic
+}
+
+auth:basic {
+  username: {{apiClientId}}
+  password: {{apiClientSecret}}
+}
+
+body:form-urlencoded {
+  token: {{accessToken}}
+  token_type_hint: access_token
+}
+
+script:post-response {
+  const b = res.getBody();
+  console.log("active     :", b.active);
+  console.log("acr        :", b.acr);
+  console.log("amr        :", JSON.stringify(b.amr), "(saknas i introspection i Keycloak 26.6 – läs amr ur JWT:n)");
+  console.log("x509_issuer:", b.x509_issuer);
+}
+
+tests {
+  test("introspection returns 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("token is active and carries acr", function () {
+    const b = res.getBody();
+    expect(b.active).to.equal(true);
+    expect(b.acr).to.match(/^loa[1-3]$/);
+  });
+
+  test("introspection agrees with the access token (acr, x509_issuer)", function () {
+    const at = JSON.parse(bru.getVar("accessTokenClaims") || "{}");
+    expect(res.getBody().acr).to.equal(at.acr);
+    expect(res.getBody().x509_issuer).to.equal(at.x509_issuer);
+  });
+
+  test("amr is NOT returned by introspection in Keycloak 26.6 (known limitation)", function () {
+    // oidc-amr-mapper only implements the ID/access token mappers. Backends that need amr
+    // must read it from the validated JWT access token. If this test starts failing after
+    // a Keycloak upgrade, amr has become available here — update docs/app-owner-guide.md.
+    expect(res.getBody().amr).to.equal(undefined);
+  });
+}
+
+docs {
+  Så här ser ett backend-API (resource server, klient `poc-api`) tokenet. Observera: `amr` returneras
+  inte av introspection i Keycloak 26.6 (`oidc-amr-mapper` saknar stöd) – läs `amr` ur den validerade JWT:n. Kräver
+  `apiClientSecret` i miljön (lokalt POC-värde: `poc-api-secret-change-me`).
+}

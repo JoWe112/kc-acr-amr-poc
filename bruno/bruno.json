@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "name": "Keycloak ACR AMR POC",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"],
+  "scripts": {
+    "moduleWhitelist": [],
+    "filesystemAccess": { "allow": false }
+  },
+  "clientCertificates": {
+    "enabled": false,
+    "certs": [
+      {
+        "domain": "localhost:8443",
+        "type": "cert",
+        "certFilePath": "../certs/testuser-high.crt",
+        "keyFilePath": "../certs/testuser-high.key",
+        "passphrase": ""
+      }
+    ]
+  }
+}

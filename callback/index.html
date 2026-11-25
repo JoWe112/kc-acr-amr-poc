@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OAuth2 callback – ACR/AMR POC</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fafafa; }
+    code, textarea { font-family: ui-monospace, monospace; }
+    textarea { width: 100%; height: 4.5rem; font-size: .9rem; }
+    .err { color: #a00; }
+    button { padding: .4rem .9rem; margin-top: .3rem; }
+  </style>
+</head>
+<body>
+  <h1>OAuth2 callback</h1>
+  <div id="out">Laddar…</div>
+  <script>
+    // Reads the authorization response from the query string and shows it so the
+    // code can be pasted into Bruno ("authCode" variable). Nothing is sent anywhere.
+    const p = new URLSearchParams(location.search);
+    const out = document.getElementById('out');
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    if (p.get('error')) {
+      out.innerHTML = '<p class="err"><b>' + esc(p.get('error')) + '</b>: ' + esc(p.get('error_description') || '') + '</p>';
+    } else if (p.get('code')) {
+      out.innerHTML =
+        '<p>Kopiera koden nedan och klistra in den som <code>authCode</code> i Bruno-miljön, ' +
+        'kör sedan <b>05 Token Exchange</b>. Koden är giltig i ca 60 sekunder och kan bara användas en gång.</p>' +
+        '<textarea id="code" readonly>' + esc(p.get('code')) + '</textarea><br>' +
+        '<button id="copy">Kopiera kod</button>' +
+        '<p>state: <code>' + esc(p.get('state') || '') + '</code></p>';
+      document.getElementById('copy').onclick = () => {
+        const t = document.getElementById('code'); t.select(); navigator.clipboard?.writeText(t.value);
+      };
+    } else {
+      out.textContent = 'Ingen code/error i URL:en.';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+meta {
+  name: Keycloak ACR AMR POC
+}
+
+script:pre-request {
+  // Shared PKCE + authorization URL builder for the three "Login" requests.
+  // A request opts in by declaring the request variable `loginFlow: true` and,
+  // optionally, `acrValues` (e.g. "loa2"). Implemented once here instead of
+  // copying it into every login request.
+  const CryptoJS = require("crypto-js");
+  const { v4: uuidv4 } = require("uuid");
+
+  if (String(bru.getRequestVar("loginFlow")) === "true") {
+    const b64url = (wordArray) =>
+      CryptoJS.enc.Base64.stringify(wordArray).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    // 64 hex chars = 256 bits of randomness; allowed charset for RFC 7636 code_verifier.
+    const verifier = (uuidv4() + uuidv4()).replace(/-/g, "");
+    const challenge = b64url(CryptoJS.SHA256(verifier));
+    const state = uuidv4();
+    const nonce = uuidv4();
+    const acrValues = bru.getRequestVar("acrValues") || "";
+
+    const params = {
+      client_id: bru.getEnvVar("clientId"),
+      redirect_uri: bru.getEnvVar("redirectUri"),
+      response_type: "code",
+      scope: "openid",
+      state,
+      nonce,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+    };
+    if (acrValues) params.acr_values = acrValues;
+
+    const query = Object.entries(params)
+      .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v))
+      .join("&");
+    const base = bru.getEnvVar("baseUrl") + "/realms/" + bru.getEnvVar("realm");
+
+    bru.setVar("codeVerifier", verifier);
+    bru.setVar("oauthState", state);
+    bru.setVar("oauthNonce", nonce);
+    bru.setVar("requestedAcr", acrValues);
+    bru.setVar("authorizeUrl", base + "/protocol/openid-connect/auth?" + query);
+  }
+}
+
+docs {
+  # Keycloak ACR/AMR POC
+
+  Kör i ordning:
+
+  1. **01 Discovery** – läser `.well-known/openid-configuration` och sparar endpoints.
+  2. **02/03/04 Login** – genererar PKCE och en authorize-URL (se *Timeline/Console*).
+     Öppna URL:en i en **webbläsare** (med importerat klientcertifikat för X.509),
+     logga in och kopiera `code` från callback-sidan (http://localhost:8081/callback).
+  3. Klistra in koden (eller hela callback-URL:en) i miljövariabeln `authCode`.
+  4. **05 Token Exchange** – växlar koden, dekodar ID/Access token och loggar `acr`, `amr`, `x509_issuer`.
+  5. **06 UserInfo** / **07 Token Introspection** – inspektera sessionen och token.
+
+  Se `README.md` och `docs/app-owner-guide.md`.
+}

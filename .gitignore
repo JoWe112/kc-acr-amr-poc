@@ -1,0 +1,14 @@
+# Generated test PKI (contains private keys) — recreate with scripts/generate-certs.sh
+certs/
+# Maven build output
+spi/target/
+# Python
+__pycache__/
+*.pyc
+# Editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+# Local overrides
+.env

@@ -1,0 +1,115 @@
+meta {
+  name: 05 Token Exchange
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/realms/{{realm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: authorization_code
+  code: {{code}}
+  redirect_uri: {{redirectUri}}
+  client_id: {{clientId}}
+  code_verifier: {{codeVerifier}}
+}
+
+script:pre-request {
+  // Accept either the bare code or the full callback URL pasted into `authCode`.
+  const raw = String(bru.getEnvVar("authCode") || "").trim();
+  const m = raw.match(/[?&]code=([^&#]+)/);
+  const code = m ? decodeURIComponent(m[1]) : raw;
+  if (!code) {
+    throw new Error("Miljövariabeln authCode är tom – kör en Login-request och logga in i webbläsaren först.");
+  }
+  const st = raw.match(/[?&]state=([^&#]+)/);
+  if (st && decodeURIComponent(st[1]) !== bru.getVar("oauthState")) {
+    throw new Error("state i callback-URL:en matchar inte senaste Login-request (CSRF-skydd).");
+  }
+  bru.setVar("code", code);
+}
+
+script:post-response {
+  // Decode (NOT verify) the JWT payload for inspection. Applications must verify the
+  // signature, iss, aud and exp before trusting any claim — see docs/app-owner-guide.md.
+  function decodeJwt(token) {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = part + "=".repeat((4 - (part.length % 4)) % 4);
+    const bin = atob(padded);
+    // UTF-8 safe decoding of the base64 payload
+    const json = decodeURIComponent(bin.split("").map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join(""));
+    return JSON.parse(json);
+  }
+
+  const body = res.getBody();
+  if (res.getStatus() !== 200) {
+    console.error("Token endpoint error:", JSON.stringify(body));
+    return;
+  }
+
+  bru.setVar("accessToken", body.access_token);
+  bru.setVar("idToken", body.id_token);
+  bru.setVar("refreshToken", body.refresh_token);
+  // A code can only be used once: clear it so a re-run fails clearly.
+  bru.setEnvVar("authCode", "");
+
+  for (const [kind, token] of [["ID token", body.id_token], ["Access token", body.access_token]]) {
+    const c = decodeJwt(token);
+    console.log("--- " + kind + " ---");
+    console.log("acr        :", c.acr);
+    console.log("amr        :", JSON.stringify(c.amr));
+    console.log("x509_issuer:", c.x509_issuer === undefined ? "(saknas – ej X.509-inloggning)" : c.x509_issuer);
+    console.log("sub/aud    :", c.sub, JSON.stringify(c.aud));
+  }
+  bru.setVar("idTokenClaims", JSON.stringify(decodeJwt(body.id_token)));
+  bru.setVar("accessTokenClaims", JSON.stringify(decodeJwt(body.access_token)));
+}
+
+tests {
+  const LEVEL = { loa1: 1, loa2: 2, loa3: 3 };
+  const AMR_ALLOWED = ["pwd", "hwk", "x509"];
+  const claims = (name) => JSON.parse(bru.getVar(name) || "{}");
+
+  test("token endpoint returns 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  for (const name of ["idTokenClaims", "accessTokenClaims"]) {
+    test(name + ": acr is one of loa1/loa2/loa3", function () {
+      expect(Object.keys(LEVEL)).to.include(claims(name).acr);
+    });
+
+    test(name + ": amr is a non-empty array of known methods", function () {
+      const amr = claims(name).amr;
+      expect(amr).to.be.an("array").that.is.not.empty;
+      amr.forEach((m) => expect(AMR_ALLOWED).to.include(m));
+    });
+
+    test(name + ": x509_issuer present iff amr contains x509", function () {
+      const c = claims(name);
+      expect(c.x509_issuer !== undefined).to.equal(c.amr.includes("x509"));
+    });
+
+    test(name + ": requested acr (acr_values) was met", function () {
+      const requested = bru.getVar("requestedAcr");
+      if (!requested) return; // standard login: nothing requested
+      expect(LEVEL[claims(name).acr], "acr " + claims(name).acr + " < requested " + requested)
+        .to.be.at.least(LEVEL[requested]);
+    });
+  }
+
+  test("nonce matches the login request", function () {
+    const expected = bru.getVar("oauthNonce");
+    if (!expected) return;
+    expect(claims("idTokenClaims").nonce).to.equal(expected);
+  });
+}
+
+docs {
+  Växlar authorization code mot tokens (PKCE) och verifierar att `acr`/`amr` finns och att begärd
+  tillitsnivå (`acr_values`) uppnåddes. Resultatet loggas i Brunos konsol.
+}

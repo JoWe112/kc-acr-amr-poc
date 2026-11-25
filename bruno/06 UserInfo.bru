@@ -1,0 +1,35 @@
+meta {
+  name: 06 UserInfo
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/realms/{{realm}}/protocol/openid-connect/userinfo
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  console.log("UserInfo:", JSON.stringify(res.getBody(), null, 2));
+}
+
+tests {
+  test("userinfo returns 200 for an active session", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("subject matches the access token", function () {
+    const at = JSON.parse(bru.getVar("accessTokenClaims") || "{}");
+    expect(res.getBody().sub).to.equal(at.sub);
+  });
+}
+
+docs {
+  UserInfo bekräftar att sessionen är aktiv. `acr`/`amr` exponeras medvetet **inte** här –
+  läs dem från den signerade ID/Access token (eller via introspection).
+}

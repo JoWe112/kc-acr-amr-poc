@@ -1,0 +1,43 @@
+meta {
+  name: 01 Discovery
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/realms/{{realm}}/.well-known/openid-configuration
+  body: none
+  auth: none
+}
+
+script:post-response {
+  // Store the endpoints so the other requests never hard-code paths.
+  const d = res.getBody();
+  bru.setVar("issuer", d.issuer);
+  bru.setVar("authorizationEndpoint", d.authorization_endpoint);
+  bru.setVar("tokenEndpoint", d.token_endpoint);
+  bru.setVar("userinfoEndpoint", d.userinfo_endpoint);
+  bru.setVar("introspectionEndpoint", d.introspection_endpoint);
+  bru.setVar("jwksUri", d.jwks_uri);
+  console.log("issuer:", d.issuer);
+  console.log("acr_values_supported:", JSON.stringify(d.acr_values_supported));
+  console.log("claims_supported contains acr:", (d.claims_supported || []).includes("acr"));
+}
+
+tests {
+  test("discovery returns 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("issuer matches the realm", function () {
+    expect(res.getBody().issuer).to.equal(bru.getEnvVar("baseUrl") + "/realms/" + bru.getEnvVar("realm"));
+  });
+
+  test("acr values loa1..loa3 are advertised", function () {
+    expect(res.getBody().acr_values_supported).to.include.members(["loa1", "loa2", "loa3"]);
+  });
+
+  test("PKCE S256 is supported", function () {
+    expect(res.getBody().code_challenge_methods_supported).to.include("S256");
+  });
+}
