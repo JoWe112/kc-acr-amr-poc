@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bump `actions/cache` to v6 and `maven-compiler-plugin` to 3.16.0 (#13).
+
 ### Fixed
 - CI on pull requests: grant `pull-requests: read` to the path-filter job (#11).
 - Dependabot no longer proposes Keycloak image bumps; the image is bumped together with `keycloak.version` (#11).
