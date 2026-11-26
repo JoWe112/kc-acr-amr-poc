@@ -3,7 +3,7 @@
 Den här guiden riktar sig till Keycloak-administratörer. Den beskriver hur lösningen hänger ihop,
 hur SPI:n byggs och installeras, hur du lägger till en ny utfärdande CA och hur du felsöker.
 
-> **Version:** SPI 0.1.0, verifierad mot Keycloak **26.6.4**.
+> **Version:** SPI 0.1.1, verifierad mot Keycloak **26.6.4**.
 
 ## Innehåll
 
@@ -464,7 +464,7 @@ läses build-tidsoptioner bara vid `kc.sh build`, och **valet av `x509cert-looku
 ```dockerfile
 # Exempel
 FROM quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4 AS builder
-COPY x509-issuer-loa-authenticator-0.1.0.jar /opt/keycloak/providers/
+COPY x509-issuer-loa-authenticator-0.1.1.jar /opt/keycloak/providers/
 RUN /opt/keycloak/bin/kc.sh build \
       --db=postgres \
       --health-enabled=true \
@@ -478,7 +478,7 @@ CMD ["start", "--optimized"]
 ```
 
 - Hämta JAR:en från [GitHub-releasen](https://github.com/JoWe112/kc-acr-amr-poc/releases) och verifiera den:
-  `sha256sum -c x509-issuer-loa-authenticator-0.1.0.jar.sha256`. Bygg den inte på en utvecklardator.
+  `sha256sum -c x509-issuer-loa-authenticator-0.1.1.jar.sha256`. Bygg den inte på en utvecklardator.
 - Keycloak-versionen i avbilden **måste** vara den som står i JAR:ens manifest (`Keycloak-Version`, se
   [Uppgradera](#uppgradera)).
 - Skanna avbilden med Trivy innan den publiceras och bygg om regelbundet för att få säkerhetsrättningar.
