@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Production setup section in `docs/admin-guide.md` (§ 8): POC-to-production checklist, image build, mTLS behind
+  ingress/OpenShift routes, realm hardening, certificate revocation and user binding, operations, verification (#17).
+
 ## [0.1.0] - 2026-11-25
 
 ### Added

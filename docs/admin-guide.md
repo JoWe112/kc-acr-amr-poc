@@ -14,6 +14,7 @@ hur SPI:n byggs och installeras, hur du lägger till en ny utfärdande CA och hu
 5. [Truststore, mTLS och reverse proxy](#5-truststore-mtls-och-reverse-proxy)
 6. [Felsökning](#6-felsökning)
 7. [Kända begränsningar](#7-kända-begränsningar)
+8. [Produktionssättning](#8-produktionssättning)
 
 ---
 
@@ -430,3 +431,177 @@ Aktivera även **Realm settings → Events → User events** för att se `LOGIN_
 - Step-up till LoA 2 för en användare utan passkey och utan certifikat avbryts med en felsida i stället för att
   erbjuda ett annat alternativ.
 - Ingen validering av SPI-konfigurationen när den sparas i Admin UI (valideras vid inloggning, fail-closed).
+
+---
+
+## 8. Produktionssättning
+
+POC:n är byggd för att köras lokalt med ett kommando. Mycket av det som gör det enkelt är **direkt olämpligt i
+produktion**. Det här avsnittet beskriver vad som måste ändras och i vilken ordning. Avsnittet är en checklista,
+inte en färdig driftsättning: det levereras inget Helm-diagram eller produktionsrealm i repot.
+
+> Optionsnamnen nedan är kontrollerade mot keycloak.org (26.x). Kodblock märkta *exempel* är inte körda i den
+> här POC:n – verifiera mot dokumentationen för exakt den version ni kör.
+
+### 8.1 Från POC till produktion – översikt
+
+| Område | I POC:n | I produktion |
+|--------|---------|--------------|
+| Startläge | `start-dev` (bygger vid varje start, dev-databas i containern) | `start --optimized` med en förbyggd avbild ([8.2](#82-bygg-en-egen-keycloak-avbild)) |
+| Databas | Inbyggd dev-databas, försvinner med containern | Extern databas, t.ex. PostgreSQL (`--db=postgres`, `--db-url`, `--db-username`, `--db-password`) |
+| Realm | `--import-realm` av `keycloak/realm-export.json` | Egen produktionsrealm, versionshanterad ([8.4](#84-realmen)) – **importera aldrig POC-exporten** |
+| PKI | Självsignerade test-CA:er från `generate-certs.sh` | Organisationens riktiga utfärdande CA:er ([8.5](#85-certifikat-och-revokering)) |
+| Hemligheter | `admin`/`admin`, `changeit`, `poc-api-secret-change-me` i klartext | Kubernetes `Secret`/secrets manager, unika per miljö ([8.6](#86-hemligheter-och-administratörer)) |
+| mTLS | Keycloak terminerar TLS direkt på 8443 | Passthrough eller proxy som vidarebefordrar certet ([8.3](#83-mtls-i-kubernetes--openshift)) |
+| Passkey | `rpId = localhost` | `rpId` = produktionsdomänen ([8.4](#84-realmen)) |
+| Loggning | `DEBUG` för SPI:n och X.509 | `INFO` – DEBUG-raderna innehåller Subject/Issuer-DN, d.v.s. personuppgifter |
+
+### 8.2 Bygg en egen Keycloak-avbild
+
+Utgå från Dockerfilen i [avsnitt 2](#installera) och lägg till build-tidsoptioner. I `start --optimized`-läge
+läses build-tidsoptioner bara vid `kc.sh build`, och **valet av `x509cert-lookup`-provider är en sådan option**.
+
+```dockerfile
+# Exempel
+FROM quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4 AS builder
+COPY x509-issuer-loa-authenticator-0.1.0.jar /opt/keycloak/providers/
+RUN /opt/keycloak/bin/kc.sh build \
+      --db=postgres \
+      --health-enabled=true \
+      --metrics-enabled=true \
+      --spi-x509cert-lookup--provider=default     # nginx/haproxy/apache/traefik/envoy/rfc9440 bakom proxy (8.3)
+
+FROM quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+COPY --from=builder /opt/keycloak/ /opt/keycloak/
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+CMD ["start", "--optimized"]
+```
+
+- Hämta JAR:en från [GitHub-releasen](https://github.com/JoWe112/kc-acr-amr-poc/releases) och verifiera den:
+  `sha256sum -c x509-issuer-loa-authenticator-0.1.0.jar.sha256`. Bygg den inte på en utvecklardator.
+- Keycloak-versionen i avbilden **måste** vara den som står i JAR:ens manifest (`Keycloak-Version`, se
+  [Uppgradera](#uppgradera)).
+- Skanna avbilden med Trivy innan den publiceras och bygg om regelbundet för att få säkerhetsrättningar.
+
+Runtime-konfiguration (env eller `args`, hemligheter från `Secret`) – *exempel*:
+
+```text
+--hostname=https://sso.example.org
+--hostname-admin=https://sso-admin.example.internal    # admin-konsolen på ett eget, internt värdnamn
+--db-url=jdbc:postgresql://db.example.internal/keycloak
+--db-username=keycloak            --db-password=<från Secret>
+--https-certificate-file=/tls/tls.crt                  --https-certificate-key-file=/tls/tls.key
+--https-client-auth=request
+--https-trust-store-file=/truststore/login-cas.p12     --https-trust-store-password=<från Secret>
+--https-trust-store-type=PKCS12
+--log-level=INFO
+```
+
+- Probes mot management-porten **9000** (`/health/ready` för readiness). Exponera inte port 9000 utanför klustret.
+- Management-gränssnittet ärver mTLS-inställningarna. Med `request` fungerar probes utan certifikat; använder ni
+  `required` någonstans, sätt `--https-management-client-auth=none` så att probes inte nekas.
+- Kör flera repliker. LoA-kartan och `x509_issuer_dn` är *user session notes* och följer med sessionen
+  (replikering/persistenta sessioner i Keycloak 26) – SPI:n kräver ingen extra klusterkonfiguration, men JAR:en
+  måste finnas i avbilden på **alla** noder.
+
+### 8.3 mTLS i Kubernetes / OpenShift
+
+Den vanligaste felkällan i produktion: **klientcertifikatet försvinner om TLS termineras före Keycloak.** En
+OpenShift Route med `edge`- eller `reencrypt`-terminering, eller en vanlig Ingress som terminerar TLS, skickar
+aldrig vidare webbläsarens certifikat. X.509-subflödet hoppas då tyst över och alla användare hamnar på lösenord.
+
+| Alternativ | Hur | Keycloak-konfiguration |
+|------------|-----|------------------------|
+| **A – Passthrough (rekommenderas)** | OpenShift Route `tls.termination: passthrough`, eller en TCP-lastbalanserare (L4). Keycloak gör TLS och mTLS själv, som i POC:n. | `--spi-x509cert-lookup--provider=default`, truststore enligt [avsnitt 5](#alternativ-a--mtls-direkt-i-keycloak-används-i-pocn). Sätt **inte** `--proxy-headers`. |
+| **B – Proxy vidarebefordrar certet** | Proxyn kräver/begär klientcert, validerar det och skickar det i en header (`ssl-client-cert`). | Rätt lookup-provider vid `kc.sh build`, `--proxy-headers=xforwarded` och kraven i [avsnitt 5](#alternativ-b--nginx-eller-annan-proxy-terminerar-tls). |
+
+För alternativ B gäller utöver avsnitt 5:
+
+- Keycloak-podarna får bara ta emot trafik från proxyn – lås med en `NetworkPolicy`, och sätt
+  `--proxy-trusted-addresses` till proxyns adresser.
+- Proxyn ska *begära* (inte kräva) klientcert, motsvarande `https-client-auth=request`, annars kan användare utan
+  certifikat inte nå inloggningssidan.
+- Använd `trust-proxy-verification=false` (default) så att Keycloak validerar kedjan igen mot sin egen truststore.
+- ingress-nginx (annotationerna `auth-tls-*`) är avvecklat – välj en underhållen controller/gateway och kontrollera
+  att den kan vidarebefordra klientcertet.
+
+**UX-effekt av `request`:** webbläsaren kan visa en certifikatdialog på varje sida under värdnamnet där mTLS är
+aktivt. Lägg admin-konsolen på ett eget värdnamn (`--hostname-admin`) och överväg att låta bara inloggningsvärdnamnet
+begära certifikat.
+
+### 8.4 Realmen
+
+`keycloak/realm-export.json` innehåller testdata och får **inte** importeras i produktion:
+
+| I exporten | Åtgärd i produktion |
+|------------|---------------------|
+| Användaren `testuser` / `Test1234!` | Ta bort; användare kommer från er IdP/LDAP |
+| Publik klient `bruno` med `localhost`-redirect-URI:er | Ta bort; skapa riktiga klienter med exakta redirect-URI:er |
+| Klienten `poc-api` med hemligheten `poc-api-secret-change-me` | Ny hemlighet (eller `private_key_jwt`) per miljö, lagrad i secrets manager |
+| Test-CA-DN:erna i `x509loa.issuer-mapping` | Era CA:ers DN ([avsnitt 4](#4-lägga-till-en-ny-issuing-ca--loa-mappning)) |
+| WebAuthn Passwordless `rpId = localhost` | Produktionsdomänen, t.ex. `example.org` |
+| `sslRequired: external` | `all` |
+| Ingen lösenordspolicy (`passwordPolicy` saknas) | Lösenordspolicy enligt er säkerhetspolicy; brute force-skyddet är redan på |
+
+Hantera produktionsrealmen som kod: exportera *strukturen* (flöden, mappers, ACR-to-LoA-mappning, authenticator-configs)
+ur en staging-miljö och applicera den med ett verktyg som keycloak-config-cli eller `kcadm.sh` i en pipeline, så att
+ändringar granskas i PR. Det som ska följa med oförändrat från POC:n är flödesstrukturen i
+[avsnitt 3](#3-autentiseringsflödet-i-detalj), inklusive den vilande LoA 3-conditionen och authenticator-före-condition-ordningen.
+
+Två saker är svåra att ändra i efterhand:
+
+- **Passkey-`rpId`.** Registrerade passkeys är bundna till `rpId`. Byter ni domän senare måste alla användare
+  registrera om sina passkeys. Bestäm den slutliga domänen innan ni öppnar för registrering.
+- **Livslängder.** `default.reference.maxAge` (`amr`) och `loa-max-age` (`acr`) är satta till 36000 s, samma som
+  *SSO Session Max*. Ändras sessionslivslängderna måste dessa värden ändras samtidigt, annars försvinner metoder ur
+  `amr` eller nivåer ur `acr` mitt i en session ([avsnitt 3](#hur-amr-uppstår)).
+
+### 8.5 Certifikat och revokering
+
+- **Truststore = bara inloggnings-CA:er.** Ta inte med *Test CA Unmapped* eller någon annan CA som inte finns i
+  mappningen. Har en CA mellanliggande CA:er ska mappningen ange den **utfärdande** (närmaste) CA:ns DN, och
+  truststore/`certificate-chain-length` måste täcka hela kedjan.
+- **Slå på revokeringskontroll.** I POC:n är CRL-, CRLDP- och OCSP-kontroll avstängda i
+  *X509/Validate Username Form*. Aktivera OCSP (eller CRL) och behåll *OCSP fail-open* = av, så att ett återkallat
+  certifikat inte kan logga in när OCSP-tjänsten är nere.
+- **Starkare användarkoppling.** POC:n mappar *Subject CN → användarnamn*. Med flera betrodda CA:er betyder det att
+  **varje** betrodd CA kan utfärda ett certifikat som loggar in som vilken användare som helst med det namnet. Använd
+  ett attribut som CA:n garanterar är unikt och som är kopplat till rätt person, t.ex. SAN (e-post/UPN) eller ett
+  serienummer i Subject, med *Custom Attribute Mapper* mot ett användarattribut som er IdP sätter.
+- **CA-byte.** Ett nytt CA-certifikat med samma Subject DN kräver bara en uppdatering av truststore. Ett nytt DN
+  kräver också en ny rad i mappningen – lägg till den *innan* de första certifikaten från den nya CA:n delas ut.
+
+### 8.6 Hemligheter och administratörer
+
+- `KC_BOOTSTRAP_ADMIN_USERNAME`/`PASSWORD` används bara vid första starten. Skapa sedan en riktig administratör
+  (helst via er IdP med MFA) och ta bort bootstrap-kontot.
+- Truststore-lösenord, databaslösenord och klienthemligheter läses från `Secret`, aldrig från defaultvärden som
+  `changeit`. Byt dem per miljö.
+- Ge applikationsägare bara de roller de behöver; ändringar i `browser-acr-amr` och i SPI-mappningen ska vara
+  förbehållna realm-administratörer, eftersom de direkt avgör vilken `acr` som utfärdas.
+
+### 8.7 Drift och övervakning
+
+- Aktivera **user events** och **admin events** med en utgångstid (Realm settings → Events) och skicka dem till
+  er loggplattform.
+- Larma på `LOGIN_ERROR` med felen `x509_issuer_not_mapped` (okänd CA – felkonfiguration eller angreppsförsök),
+  `invalid_x509_loa_configuration` (alla X.509-inloggningar nekas tills den rättas) och `no_client_certificate`.
+- Ändringar i SPI-mappningen gäller direkt vid nästa inloggning, utan omstart. Behandla dem som en driftsättning:
+  granska, testa i staging och logga vem som ändrade (admin events).
+
+### 8.8 Verifiering före produktionssättning
+
+`scripts/run-e2e.sh` och `scripts/validate-bruno.sh` förutsätter POC-realmen (`acr-poc`, `testuser`, test-CA:erna,
+callback på `localhost:8081`) och kan **inte** köras mot produktion oförändrade. Använd dem så här:
+
+1. Bygg produktionsavbilden och kör den lokalt i stället för `quay.io/keycloak/keycloak` i `docker-compose.yml`
+   (behåll `start-dev`-optionerna för testet). Kör `scripts/run-e2e.sh` – det visar att just den avbilden och JAR:en
+   beter sig som POC:n.
+2. I staging, med produktionsrealmen och riktiga testcertifikat från varje CA, verifiera manuellt (eller med Bruno
+   mot staging-miljön) för varje inloggningsmetod och CA att `acr`, `amr` och `x509_issuer` stämmer med tabellen i
+   [avsnitt 1](#vad-hamnar-i-token), samt att:
+   - ett certifikat från en CA utanför mappningen nekas,
+   - ett obligatoriskt (`essential`) `loa3`-krav nekas med ett Standard-CA-certifikat,
+   - SSO och step-up behåller nivån,
+   - ett återkallat certifikat nekas (efter att revokering slagits på).
+3. Kontrollera att loggarna är på `INFO` och att inga DN:er, token eller lösenord loggas.

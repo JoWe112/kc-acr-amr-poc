@@ -20,7 +20,7 @@ certifikatets utfärdande CA** via en egen Keycloak-SPI.
 Dessutom finns claimet `x509_issuer` (certifikatets Issuer DN) vid certifikatinloggning.
 
 📘 **Dokumentation (svenska):**
-[Administratörsguide](docs/admin-guide.md) · [Guide för applikationsägare och utvecklare](docs/app-owner-guide.md)
+[Administratörsguide](docs/admin-guide.md) · [Guide för applikationsägare och utvecklare](docs/app-owner-guide.md) · [Produktionssättning](docs/admin-guide.md#8-produktionssättning)
 
 ---
 
