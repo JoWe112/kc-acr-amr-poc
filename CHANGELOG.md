@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-26
+
 ### Added
 - Production setup section in `docs/admin-guide.md` (§ 8): POC-to-production checklist, image build, mTLS behind
   ingress/OpenShift routes, realm hardening, certificate revocation and user binding, operations, verification (#17).
@@ -39,5 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - CI on pull requests: the path-filter job is granted `pull-requests: read`.
 
-[Unreleased]: https://github.com/JoWe112/kc-acr-amr-poc/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/JoWe112/kc-acr-amr-poc/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/JoWe112/kc-acr-amr-poc/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/JoWe112/kc-acr-amr-poc/releases/tag/v0.1.0
